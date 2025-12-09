@@ -45,7 +45,7 @@ fun MainScreen(navController: NavController, viewModel: MainViewModel = viewMode
                             contentDescription = "搜索"
                         )
                     }
-                    
+
                     // + 号图标，点击展开下拉菜单
                     Box {
                         IconButton(onClick = { expanded = true }) {
@@ -54,7 +54,7 @@ fun MainScreen(navController: NavController, viewModel: MainViewModel = viewMode
                                 contentDescription = "更多操作"
                             )
                         }
-                        
+
                         // 下拉菜单
                         DropdownMenu(
                             expanded = expanded,
@@ -62,36 +62,37 @@ fun MainScreen(navController: NavController, viewModel: MainViewModel = viewMode
                         ) {
                             DropdownMenuItem(
                                 text = { Text("发起群聊") },
-                                onClick = { 
+                                onClick = {
                                     // 处理发起群聊操作
                                     expanded = false
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("添加朋友") },
-                                onClick = { 
+                                onClick = {
                                     // 处理添加朋友操作
                                     expanded = false
                                 }
                             )
                             DropdownMenuItem(
                                 text = { Text("扫一扫") },
-                                onClick = { 
+                                onClick = {
                                     // 处理扫一扫操作
                                     expanded = false
                                 }
                             )
                         }
                     }
-                    
+
                     // 登出按钮移到菜单中或者保留
-                    IconButton(onClick = { 
+                    IconButton(onClick = {
+                        // 清除Token
+                        val tokenManager = com.example.chatapp.utils.TokenManager(navController.context as android.content.Context)
+                        tokenManager.clearTokens()
+
                         // 返回登录界面
                         navController.navigate("login") {
-                            // 清空到导航图起始页，兼容所有栈结构
-                            popUpTo(navController.graph.startDestinationId) {
-                                inclusive = true // 清空起始页（避免残留）
-                            }
+                            popUpTo("login") { inclusive = true } // 直接跳转到登录页并清除中间栈
                             launchSingleTop = true // 登录页仅一个实例
                         }
                     }) {
