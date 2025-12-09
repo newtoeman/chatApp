@@ -8,6 +8,7 @@ import com.example.chatapp.data.AppDatabase
 import com.example.chatapp.data.repository.PreferencesRepositoryImpl
 import com.example.chatapp.network.ApiService
 import com.example.chatapp.network.MockApiService
+import com.example.chatapp.utils.TokenManager
 
 class LoginViewModelFactory(
     private val application: Application,
@@ -19,7 +20,8 @@ class LoginViewModelFactory(
             val database = AppDatabase.getDatabase(application)
             val repository = UserRepository(database.userDao())
             val preferencesRepository = PreferencesRepositoryImpl(application)
-            return LoginViewModel(repository, preferencesRepository, apiService) as T
+            val tokenManager = TokenManager(application)
+            return LoginViewModel(repository, preferencesRepository, tokenManager, apiService) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

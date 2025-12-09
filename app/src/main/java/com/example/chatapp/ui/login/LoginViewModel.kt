@@ -7,7 +7,9 @@ import com.example.chatapp.data.User
 import com.example.chatapp.data.UserRepository
 import com.example.chatapp.data.repository.PreferencesRepository
 import com.example.chatapp.network.ApiService
+import com.example.chatapp.network.LoginResponse
 import com.example.chatapp.network.MockApiService
+import com.example.chatapp.utils.TokenManager
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 class LoginViewModel(
     private val repository: UserRepository,
     private val preferencesRepository: PreferencesRepository,
+    private val tokenManager: TokenManager,
     private val apiService: ApiService = MockApiService()
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(LoginUiState())
@@ -84,7 +87,7 @@ class LoginViewModel(
 
         // 启动防抖协程，延迟执行缓存查询
         phoneInputDebounceJob = viewModelScope.launch {
-            // 防抖延迟：500ms（可根据实际场景调整为300~800ms）
+            // 防抖延迟：300ms（可根据实际场景调整为300~800ms）
             delay(300)
             // 执行缓存查询（增加手机号长度过滤，进一步减少无效查询）
             queryPasswordCache(phone)
@@ -162,39 +165,37 @@ class LoginViewModel(
             }
 
             try {
-                // 首先尝试本地数据库验证
-                val localUser = repository.login(phone, password)
-                if (localUser != null) {
-                    // 本地验证成功
-                    // 根据是否记住密码保存凭据
-                    if (_uiState.value.isRememberPassword) {
-                        preferencesRepository.saveOrUpdateAccount(phone, password) // 保存特定手机号的密码
-                    } else {
-                        preferencesRepository.saveOrUpdateAccount(phone, "") // 清除特定手机号的密码
-                    }
-                    _loginState.value = LoginState.LoginSuccess(localUser)
-                    return@launch
-                }
-
-                // 如果本地验证失败，尝试服务器验证
+                // 直接调用服务端验证，移除本地验证逻辑
                 val serverResult = apiService.login(phone, password)
                 if (serverResult.isSuccess) {
-                    val user = serverResult.getOrNull()
-                    if (user != null) {
-                        // 将用户信息保存到本地数据库
-                        repository.registerUser(user)
+                    val response = serverResult.getOrNull()
+                    if (response != null) {
+                        // 登录成功，保存JWT Token
+                        tokenManager.saveTokens(
+                            response.accessToken,
+                            response.refreshToken,
+                            response.user.id,
+                            response.user.phone,
+                            response.user.username
+                        )
+                        
                         // 根据是否记住密码保存凭据
                         if (_uiState.value.isRememberPassword) {
                             preferencesRepository.saveOrUpdateAccount(phone, password) // 保存特定手机号的密码
                         } else {
                             preferencesRepository.saveOrUpdateAccount(phone, "") // 清除特定手机号的密码
                         }
+                        
+                        // 将用户信息保存到本地数据库
+                        val user = User(response.user.id, response.user.phone, password, response.user.username)
+                        repository.saveUser(user)
+                        
                         _loginState.value = LoginState.LoginSuccess(user)
                     } else {
                         _loginState.value = LoginState.Error("手机号或密码错误")
                     }
                 } else {
-                    _loginState.value = LoginState.Error("登录失败1")
+                    _loginState.value = LoginState.Error("登录失败: ${serverResult.exceptionOrNull()?.message}")
                 }
             } catch (e: Exception) {
                 _loginState.value = LoginState.Error("登录失败: ${e.message}")
@@ -220,33 +221,42 @@ class LoginViewModel(
                 return@launch
             }
             try {
-                val existingUser = repository.getUserByPhone(phone)
-                if (existingUser != null) {
-                    _loginState.value = LoginState.Error("该手机号已被注册")
-                    return@launch
-                }
-
-                // 调用服务器注册接口
+                // 直接调用服务器注册接口，移除本地验证逻辑
                 val serverResult = apiService.register(phone, password, username)
                 if (serverResult.isSuccess) {
-                    val user = serverResult.getOrNull()
-                    if (user != null) {
-                        // 将用户信息保存到本地数据库
-                        repository.registerUser(user)
+                    val response = serverResult.getOrNull()
+                    if (response != null) {
+                        // 注册成功，保存JWT Token
+                        tokenManager.saveTokens(
+                            response.accessToken,
+                            response.refreshToken,
+                            response.user.id,
+                            response.user.phone,
+                            response.user.username
+                        )
+
                         // 注册成功后，将新注册的手机号添加到缓存中
-                        preferencesRepository.saveOrUpdateAccount(phone, "")
-                        // 注意：注册时不保存密码，因为这是新账号，用户可能不希望立即记住密码
+                        // preferencesRepository.saveOrUpdateAccount(phone, "")
+                        
+                        // 将用户信息保存到本地数据库
+                        val user = User(response.user.id, response.user.phone, password, response.user.username)
+                        repository.saveUser(user)
+                        
                         _loginState.value = LoginState.RegisterSuccess(user)
                     } else {
                         _loginState.value = LoginState.Error("服务器返回空,注册失败")
                     }
                 } else {
-                    _loginState.value = LoginState.Error("注册失败, 服务器拒绝请求")
+                    _loginState.value = LoginState.Error("注册失败: ${serverResult.exceptionOrNull()?.message}")
                 }
             } catch (e: Exception) {
                 _loginState.value = LoginState.Error("注册失败: ${e.message}")
             }
         }
+    }
+
+    fun logout() {
+        tokenManager.clearTokens()
     }
 
     private fun isValidPhone(phone: String): Boolean {

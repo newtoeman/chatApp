@@ -24,10 +24,11 @@ ChatApp 是一个使用 Android Jetpack Compose 构建的聊天应用程序。�
 - **导航**: Jetpack Navigation Compose
 - **数据库**: Room (SQLite object mapping)
 - **构建系统**: Gradle (Kotlin DSL)
-- **网络**: Mock API implementation with interface for real server integration
+- **网络**: Mock API implementation with JWT authentication for real server integration
 - **图片加载**: Coil Compose
 - **图标库**: Material Icons Core & Extended
 - **JSON处理**: Gson for account caching and management
+- **安全存储**: AndroidX Security Crypto for JWT token encryption
 
 ## 项目结构
 
@@ -40,6 +41,8 @@ ChatApp/
 │   │   │   │   └── repository/     # 数据仓库接口及实现 (PreferencesRepository, PreferencesRepositoryImpl)
 │   │   │   ├── json/               # JSON 相关模型 (AccountCache, AccountInfo)
 │   │   │   ├── network/            # 网络层 (API service interface, mock implementation)
+│   │   │   │   ├── JwtToken.kt     # JWT 认证相关数据模型 (JwtToken, LoginRequest, etc.)
+│   │   │   │   └── ApiService.kt   # API 服务接口定义 (使用JWT认证)
 │   │   │   ├── ui/                 # UI 层 (包含 login, main, theme, components 等模块)
 │   │   │   │   ├── components/     # 可复用 UI 组件 (CircularAvatar)
 │   │   │   │   ├── login/          # 登录相关 UI 和 ViewModel
@@ -50,7 +53,7 @@ ChatApp/
 │   │   │   │   │   └── LoginState.kt           # 登录状态密封类
 │   │   │   │   ├── main/           # 主界面相关 UI (ContactListScreen, MessageListScreen, MomentListScreen)
 │   │   │   │   └── theme/          # 主题配置
-│   │   │   ├── utils/              # 工具类 (PreferencesManager, TimeUtils)
+│   │   │   ├── utils/              # 工具类 (PreferencesManager, TimeUtils, TokenManager)
 │   │   │   ├── MainActivity.kt     # 主 Activity
 │   │   │   └── MainScreen.kt       # 主界面
 │   │   ├── res/                    # 资源文件
@@ -61,6 +64,7 @@ ChatApp/
 ├── build.gradle.kts                # 项目级构建配置
 ├── settings.gradle.kts             # 模块配置
 └── gradlew                         # Gradle 包装器
+```
 ```
 ```
 
@@ -257,13 +261,21 @@ ChatApp/
 - **已解决**: 实现了完整的 Repository 模式
 - **实现**: 通过 UserRepository 和 PreferencesRepository 为 UI 层提供统一的数据访问接口，整合本地数据源和偏好设置
 
-### 7. 待改进方向
+### 7. 认证安全性改进
+- **已解决**: 原先本地验证再服务端验证的不安全流程已修正
+- **实现**: 采用JWT认证方式，服务端作为唯一认证权威，本地仅缓存Token，移除本地密码验证逻辑
 
-#### 7.1. 引入依赖注入框架
+### 8. Token安全存储
+- **已解决**: 密码明文存储的安全风险已解决
+- **实现**: 使用Android Keystore和EncryptedSharedPreferences安全存储JWT Token
+
+### 9. 待改进方向
+
+#### 9.1. 引入依赖注入框架
 - **问题**: 当前项目仍使用手动依赖注入，组件间耦合度较高
 - **改进**: 引入 Hilt 作为依赖注入框架，实现松耦合的架构设计
 
-#### 7.2. 增强测试覆盖
+#### 9.2. 增强测试覆盖
 - **问题**: 当前项目缺少单元测试和集成测试
 - **改进**: 添加对 ViewModel 和 Repository 层的单元测试，提高代码质量
 
